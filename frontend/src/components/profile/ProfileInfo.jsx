@@ -1,23 +1,33 @@
-﻿export default function ProfileInfo({ user, isOwnProfile = false }) {
+﻿import { Info } from "lucide-react";
+
+export default function ProfileInfo({ user, isOwnProfile = false }) {
   return (
-    <div className="bg-white rounded-lg shadow p-4 space-y-2">
-      <h2 className="text-lg font-semibold">ℹ️ Інформація</h2>
+    <div className="bg-neutral-50 border border-neutral-400 rounded-xl shadow-md p-6 space-y-4">
+      <h2 className="text-lg font-semibold text-neutral-900 flex items-center gap-3 pb-3 border-b border-neutral-300">
+        <span className="w-9 h-9 flex items-center justify-center rounded-full bg-neutral-200 text-neutral-700">
+          <Info size={20} />
+        </span>
+        Інформація
+      </h2>
 
       {user.phone && (
-        <p>
-          <span className="font-medium">Телефон:</span> {user.phone}
+        <p className="text-neutral-800">
+          <span className="font-medium text-neutral-900">Телефон:</span>{" "}
+          {user.phone}
         </p>
       )}
+
       {user.about ? (
-        <p>
-          <span className="font-medium">Про мене:</span> {user.about}
+        <p className="text-neutral-800 leading-relaxed">
+          <span className="font-medium text-neutral-900">Про мене:</span>{" "}
+          {user.about}
         </p>
       ) : (
-        <p className="text-gray-500 text-sm">Немає опису</p>
+        <p className="text-neutral-500 text-sm italic">Немає опису</p>
       )}
 
       {isOwnProfile && !user.isVerified && (
-        <button className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 transition">
+        <button className="mt-4 px-4 py-2 bg-emerald-900 text-white rounded-lg hover:bg-emerald-800 transition">
           Верифікувати акаунт
         </button>
       )}

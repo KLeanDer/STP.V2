@@ -2,7 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ����� �������� ��������� ����� */
+/* 🌍 Общие стили и фиксы */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  overflow-y: scroll;          /* всегда показывать вертикальный скроллбар */
+  scrollbar-gutter: stable;    /* 💎 резервирует место под него, убирает скачки */
+}
+
 body {
   @apply bg-gray-50 text-gray-900;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 🔔 Анимация появления новых сообщений */
+@keyframes newMsg {
+  0% {
+    background-color: rgba(96, 165, 250, 0.4);
+  }
+  100% {
+    background-color: inherit;
+  }
+}
+.animate-new-msg {
+  animation: newMsg 0.8s ease-out;
+}
+
+/* 🚫 Скрыть скроллбар у textarea (как в Telegram) */
+textarea::-webkit-scrollbar {
+  display: none;
+}
+textarea {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ✨ Плавное появление (для секций/карточек) */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.35s ease-out both;
+}
+
+/* ♿️ Уважение системных настроек */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-new-msg {
+    animation: none !important;
+  }
+}
+
+/* 🧩 Hover/press эффект */
+.ui-pressable {
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.ui-pressable:hover {
+  transform: translateY(-2px);
+}
+.ui-pressable:active {
+  transform: translateY(0);
 }

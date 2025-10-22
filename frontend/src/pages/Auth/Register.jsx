@@ -1,4 +1,6 @@
 ﻿import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext"; // ✅ добавляем контекст
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -6,6 +8,8 @@ export default function Register() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
+  const navigate = useNavigate();
+  const { login } = useAuth(); // ✅ берём функцию login из контекста
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -24,12 +28,15 @@ export default function Register() {
       });
 
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || "Registration failed");
 
-      localStorage.setItem("token", data.token);
+      // ✅ через контекст обновляем user в Navbar без перезагрузки
+      login(data.user, data.token);
+
+      // ✅ редирект на главную
+      navigate("/");
+
       setMsg("✅ Реєстрація успішна!");
-      setForm({ name: "", email: "", phone: "", password: "" });
     } catch (err) {
       setMsg("❌ " + err.message);
     } finally {
