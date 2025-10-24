@@ -52,37 +52,41 @@ export default function Home() {
     <BackgroundWrapper>
       <div className="flex flex-col min-h-screen overflow-x-hidden text-neutral-900 transition-colors duration-300">
         <main className="flex-grow relative">
-          {/* === Соцсети справа === */}
-          <SocialLine />
-
           {/* === Фиксированный поиск === */}
           <SearchBarGlobal visible={showSearchBar} />
+
+          {/* === Соцсети справа (высокая фиксация) === */}
+          <div className="fixed right-[clamp(8px,2vw,40px)] top-[20%] z-40 space-y-3">
+            <SocialLine />
+          </div>
 
           {/* === Hero + рекомендации === */}
           <div
             ref={heroRef}
             className="relative flex justify-center items-start mt-10 
-                       max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+                       w-full max-w-[90rem] mx-auto px-[clamp(12px,3vw,64px)]"
           >
-            {/* Левая колонка — блок рекомендаций */}
+            {/* Левая колонка — блок рекомендаций (≥1850px) */}
             <div
-              className="absolute top-0 hidden xl:block"
+              className="absolute top-0 hidden 2xl-plus:block"
               style={{
-                left: "-220px",
-                transform: "translateX(-80px)",
+                left: "clamp(-180px,-10vw,-240px)",
+                transform: "translateX(-60px)",
               }}
             >
               <RecommendationsCompact large />
             </div>
 
-            {/* Центральная — надпись STP Marketplace */}
-            <div className="flex justify-center w-full">
+            {/* Центральная часть */}
+            <div className="flex justify-center w-full max-w-[1200px] px-[clamp(8px,2vw,24px)]">
               <HeroSection />
             </div>
           </div>
 
           {/* === Остальные секции === */}
-          <CategoriesSection />
+          <div className="mt-[clamp(32px,5vw,80px)] px-[clamp(12px,3vw,64px)]">
+            <CategoriesSection />
+          </div>
         </main>
 
         {/* === Футер === */}
