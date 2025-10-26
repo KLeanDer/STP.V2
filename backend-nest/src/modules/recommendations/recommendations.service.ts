@@ -74,31 +74,45 @@ export class RecommendationsService {
    * — по категориям пользователя и популярности.
    */
   async getSmartRecommendations(userId: string | null) {
+    let topSubcategories: string[] = [];
     let topCategories: string[] = [];
 
     if (userId) {
       const recentViews = await this.prisma.listingView.findMany({
         where: { userId },
         include: {
-          listing: { select: { category: true } },
+          listing: { select: { categoryId: true, subcategoryId: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: 50,
       });
 
-      const freq: Record<string, number> = {};
+      const subFreq: Record<string, number> = {};
+      const catFreq: Record<string, number> = {};
       for (const v of recentViews) {
-        const c = v.listing?.category?.toLowerCase?.();
-        if (c) freq[c] = (freq[c] ?? 0) + 1;
+        const sub = v.listing?.subcategoryId;
+        if (sub) {
+          subFreq[sub] = (subFreq[sub] ?? 0) + 1;
+        }
+
+        const cat = v.listing?.categoryId;
+        if (cat) {
+          catFreq[cat] = (catFreq[cat] ?? 0) + 1;
+        }
       }
 
-      topCategories = Object.entries(freq)
+      topSubcategories = Object.entries(subFreq)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([c]) => c);
+
+      topCategories = Object.entries(catFreq)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5)
         .map(([c]) => c);
     }
 
-    if (!topCategories.length) {
+    if (!topSubcategories.length && !topCategories.length) {
       const popular = await this.prisma.listing.findMany({
         where: { status: 'active' },
         include: { images: true },
@@ -113,8 +127,13 @@ export class RecommendationsService {
     }
 
     const categoryListings = await this.prisma.listing.findMany({
-      where: { status: 'active', category: { in: topCategories } },
-      include: { images: true },
+      where: {
+        status: 'active',
+        ...(topSubcategories.length
+          ? { subcategoryId: { in: topSubcategories } }
+          : { categoryId: { in: topCategories } }),
+      },
+      include: { images: true, category: true, subcategory: true },
       orderBy: [
         { views: 'desc' },
         { favorites: 'desc' },
@@ -125,7 +144,7 @@ export class RecommendationsService {
 
     const randomListings = await this.prisma.listing.findMany({
       where: { status: 'active' },
-      include: { images: true },
+      include: { images: true, category: true, subcategory: true },
       orderBy: { createdAt: 'desc' },
       skip: Math.floor(Math.random() * 30),
       take: 20,
@@ -136,10 +155,13 @@ export class RecommendationsService {
       (l, i, arr) => arr.findIndex((x) => x.id === l.id) === i,
     );
 
+    const subSet = new Set(topSubcategories);
+    const catSet = new Set(topCategories);
+
     const sorted = unique.sort((a, b) => {
-      const aCat = topCategories.includes(a.category.toLowerCase()) ? 1 : 0;
-      const bCat = topCategories.includes(b.category.toLowerCase()) ? 1 : 0;
-      if (aCat !== bCat) return bCat - aCat;
+      const aMatch = (a.subcategoryId && subSet.has(a.subcategoryId)) || catSet.has(a.categoryId) ? 1 : 0;
+      const bMatch = (b.subcategoryId && subSet.has(b.subcategoryId)) || catSet.has(b.categoryId) ? 1 : 0;
+      if (aMatch !== bMatch) return bMatch - aMatch;
       return b.views - a.views;
     });
 

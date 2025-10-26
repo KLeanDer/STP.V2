@@ -50,6 +50,18 @@ export class ListingsController {
     return this.listingsService.getPopularListings();
   }
 
+  // === 🌳 Дерево категорий ===
+  @Get('categories/tree')
+  async getCategoryTree() {
+    return this.listingsService.getCategoryTree();
+  }
+
+  // === 📋 Атрибуты подкатегории ===
+  @Get('subcategories/:id/attributes')
+  async getSubcategoryAttributes(@Param('id') id: string) {
+    return this.listingsService.getAttributesBySubcategory(id);
+  }
+
   // === ⚡ Тренды недели ===
   @Get('trending/week')
   async getTrendingWeek() {

@@ -48,12 +48,79 @@ model User {
 //                   LISTINGS
 //////////////////////////////////////////////////////
 
+model Category {
+  id            String         @id @default(uuid())
+  name          String
+  slug          String?        @unique
+  description   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  subcategories Subcategory[]
+  listings      Listing[]
+}
+
+model Subcategory {
+  id          String                 @id @default(uuid())
+  name        String
+  slug        String?                @unique
+  description String?
+  categoryId  String
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  category    Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  listings    Listing[]
+  attributes  SubcategoryAttribute[]
+
+  @@index([categoryId])
+}
+
+model AttributeDefinition {
+  id          String                    @id @default(uuid())
+  name        String
+  key         String                    @unique
+  type        String
+  metadata    Json?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  subcategories SubcategoryAttribute[]
+  listingValues ListingAttributeValue[]
+}
+
+model SubcategoryAttribute {
+  subcategoryId         String
+  attributeDefinitionId String
+  order                 Int?
+
+  subcategory Subcategory         @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  attribute   AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@id([subcategoryId, attributeDefinitionId])
+}
+
+model ListingAttributeValue {
+  id                    String               @id @default(uuid())
+  listingId             String
+  attributeDefinitionId String
+  value                 String
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  listing   Listing              @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  attribute AttributeDefinition  @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, attributeDefinitionId])
+}
+
 model Listing {
   id           String   @id @default(uuid())
   title        String
   description  String
   price        Float
-  category     String   @default("OTHER")
+  categoryId   String
+  subcategoryId String?
 
   /// 🔹 Состояние товара:
   /// new | used_like_new | used_minor | used_with_issues
@@ -89,18 +156,22 @@ model Listing {
   contactPhone String?
 
   /// Владелец
-  userId String
-  user   User    @relation(fields: [userId], references: [id])
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  category    Category      @relation(fields: [categoryId], references: [id])
+  subcategory Subcategory?  @relation(fields: [subcategoryId], references: [id])
 
   /// Связи
-  images   Image[]
-  orders   Order[]
-  chats    Chat[]  @relation("ListingChats")
-  viewsLog ListingView[]
-  likedBy  Favorite[]
+  images     Image[]
+  orders     Order[]
+  chats      Chat[]                @relation("ListingChats")
+  viewsLog   ListingView[]
+  likedBy    Favorite[]
+  attributes ListingAttributeValue[]
 
   /// Индексы
-  @@index([category])
+  @@index([categoryId])
+  @@index([subcategoryId])
   @@index([city])
   @@index([createdAt])
   @@index([views])
@@ -111,7 +182,6 @@ model Listing {
 //////////////////////////////////////////////////////
 //                   FAVORITES (лайки)
 //////////////////////////////////////////////////////
-
 model Favorite {
   id         String   @id @default(uuid())
   userId     String

@@ -1,11 +1,83 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateListingDto } from './dto/create-listing.dto';
+import { CreateListingDto, ListingAttributeValueDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 
 @Injectable()
 export class ListingsService {
   constructor(private prisma: PrismaService) {}
+
+  private readonly listingInclude = {
+    user: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatarUrl: true,
+        phone: true,
+      },
+    },
+    images: true,
+    category: true,
+    subcategory: true,
+    attributes: {
+      include: {
+        attribute: true,
+      },
+    },
+  } as const;
+
+  private async validateCategoryAndAttributes(
+    categoryId: string,
+    subcategoryId?: string | null,
+    attributes?: ListingAttributeValueDto[],
+  ) {
+    const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    let subcategory: { id: string; categoryId: string; attributes: { attributeDefinitionId: string }[] } | null = null;
+
+    if (subcategoryId) {
+      const fetchedSubcategory = await this.prisma.subcategory.findUnique({
+        where: { id: subcategoryId },
+        include: { attributes: { select: { attributeDefinitionId: true } } },
+      });
+
+      if (!fetchedSubcategory) {
+        throw new NotFoundException('Subcategory not found');
+      }
+
+      if (fetchedSubcategory.categoryId !== categoryId) {
+        throw new BadRequestException('Subcategory does not belong to selected category');
+      }
+
+      subcategory = fetchedSubcategory;
+    } else if (attributes?.length) {
+      throw new BadRequestException('Subcategory must be provided when attributes are specified');
+    }
+
+    if (attributes?.length && subcategory) {
+      const attributeIds = attributes.map((attr) => attr.attributeDefinitionId);
+      const uniqueAttributeIds = Array.from(new Set(attributeIds));
+
+      if (uniqueAttributeIds.length !== attributeIds.length) {
+        throw new BadRequestException('Duplicate attribute definitions provided');
+      }
+
+      const allowedAttributeIds = new Set(
+        subcategory.attributes.map((relation) => relation.attributeDefinitionId),
+      );
+
+      const invalidAttributes = uniqueAttributeIds.filter((id) => !allowedAttributeIds.has(id));
+      if (invalidAttributes.length > 0) {
+        throw new BadRequestException('Attributes are not available for the selected subcategory');
+      }
+    }
+
+    return { category, subcategory };
+  }
 
   // === Все объявления ===
   async getAllListings(filters?: { userId?: string; status?: string }) {
@@ -20,18 +92,7 @@ export class ListingsService {
 
     return this.prisma.listing.findMany({
       where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarUrl: true,
-            phone: true,
-          },
-        },
-        images: true,
-      },
+      include: this.listingInclude,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -40,18 +101,7 @@ export class ListingsService {
   async getListingById(id: string) {
     const listing = await this.prisma.listing.findUnique({
       where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatarUrl: true,
-            phone: true,
-          },
-        },
-        images: true,
-      },
+      include: this.listingInclude,
     });
 
     if (!listing) throw new NotFoundException('Listing not found');
@@ -60,22 +110,36 @@ export class ListingsService {
 
   // === Создать объявление ===
   async createListing(userId: string, dto: CreateListingDto) {
+    const { categoryId, subcategoryId, attributes, images, price, ...rest } = dto;
+
+    await this.validateCategoryAndAttributes(categoryId, subcategoryId, attributes);
+
     return this.prisma.listing.create({
       data: {
-        ...dto,
-        price: Number(dto.price),
+        ...rest,
+        price: Number(price),
         userId,
         status: 'active',
         views: 0,
+        categoryId,
+        subcategoryId: subcategoryId ?? undefined,
         images: {
-          create: Array.isArray(dto.images)
-            ? dto.images
+          create: Array.isArray(images)
+            ? images
                 .filter((url) => url && url.trim() !== '')
                 .map((url) => ({ url }))
             : [],
         },
+        attributes: attributes?.length
+          ? {
+              create: attributes.map((attr) => ({
+                attributeDefinitionId: attr.attributeDefinitionId,
+                value: attr.value,
+              })),
+            }
+          : undefined,
       },
-      include: { user: true, images: true },
+      include: this.listingInclude,
     });
   }
 
@@ -84,21 +148,46 @@ export class ListingsService {
     const listing = await this.prisma.listing.findUnique({ where: { id: listingId } });
     if (!listing || listing.userId !== userId) return null;
 
+    const categoryId = dto.categoryId ?? listing.categoryId;
+    const subcategoryId =
+      dto.subcategoryId !== undefined ? dto.subcategoryId : listing.subcategoryId;
+
+    await this.validateCategoryAndAttributes(categoryId, subcategoryId, dto.attributes);
+
+    const data: any = {
+      categoryId,
+      subcategoryId: subcategoryId ?? null,
+    };
+
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.price !== undefined) data.price = Number(dto.price);
+    if (dto.contactName !== undefined) data.contactName = dto.contactName;
+    if (dto.contactPhone !== undefined) data.contactPhone = dto.contactPhone;
+
+    if (dto.images !== undefined) {
+      data.images = {
+        deleteMany: {},
+        create: dto.images
+          .filter((url) => url && url.trim() !== '')
+          .map((url) => ({ url })),
+      };
+    }
+
+    if (dto.attributes !== undefined) {
+      data.attributes = {
+        deleteMany: {},
+        create: dto.attributes.map((attr) => ({
+          attributeDefinitionId: attr.attributeDefinitionId,
+          value: attr.value,
+        })),
+      };
+    }
+
     return this.prisma.listing.update({
       where: { id: listingId },
-      data: {
-        ...dto,
-        price: dto.price ? Number(dto.price) : listing.price,
-        images: dto.images
-          ? {
-              deleteMany: {},
-              create: dto.images
-                .filter((url) => url && url.trim() !== '')
-                .map((url) => ({ url })),
-            }
-          : undefined,
-      },
-      include: { user: true, images: true },
+      data,
+      include: this.listingInclude,
     });
   }
 
@@ -110,7 +199,7 @@ export class ListingsService {
     return this.prisma.listing.update({
       where: { id: listingId },
       data: { status },
-      include: { user: true, images: true },
+      include: this.listingInclude,
     });
   }
 
@@ -158,18 +247,22 @@ export class ListingsService {
   // === 💡 Комбинированные рекомендации (з fallback) ===
   async getRecommendations(recentIds?: string) {
     const ids = recentIds ? recentIds.split(',').filter(Boolean) : [];
-    let categories: string[] = [];
+    let subcategoryIds: string[] = [];
+    let categoryIds: string[] = [];
 
     if (ids.length > 0) {
       const recent = await this.prisma.listing.findMany({
         where: { id: { in: ids }, status: 'active' },
-        select: { category: true },
+        select: { subcategoryId: true, categoryId: true },
       });
-      categories = [...new Set(recent.map((r) => r.category))];
+      subcategoryIds = [
+        ...new Set(recent.map((r) => r.subcategoryId).filter((id): id is string => Boolean(id))),
+      ];
+      categoryIds = [...new Set(recent.map((r) => r.categoryId).filter(Boolean))];
     }
 
     // === Якщо немає категорій — просто повертаємо випадкові активні оголошення ===
-    if (categories.length === 0) {
+    if (subcategoryIds.length === 0 && categoryIds.length === 0) {
       const random = await this.prisma.listing.findMany({
         where: { status: 'active' },
         take: 24,
@@ -185,7 +278,12 @@ export class ListingsService {
     }
 
     const basedOnViews = await this.prisma.listing.findMany({
-      where: { category: { in: categories }, status: 'active' },
+      where: {
+        status: 'active',
+        ...(subcategoryIds.length
+          ? { subcategoryId: { in: subcategoryIds } }
+          : { categoryId: { in: categoryIds } }),
+      },
       orderBy: [{ views: 'desc' }],
       take: 24,
       include: { images: { select: { url: true } } },
@@ -215,18 +313,21 @@ export class ListingsService {
 
   // === 🧩 Похожие объявления ===
   async getRelated(id: string) {
-    const base = await this.prisma.listing.findUnique({ where: { id } });
+    const base = await this.prisma.listing.findUnique({
+      where: { id },
+      select: { subcategoryId: true, categoryId: true },
+    });
     if (!base) return [];
 
     return this.prisma.listing.findMany({
       where: {
-        category: base.category,
         status: 'active',
         id: { not: id },
+        ...(base.subcategoryId ? { subcategoryId: base.subcategoryId } : { categoryId: base.categoryId }),
       },
       orderBy: [{ createdAt: 'desc' }],
       take: 12,
-      include: { images: { select: { url: true } } },
+      include: { images: { select: { url: true } }, category: true, subcategory: true },
     });
   }
 
@@ -254,6 +355,8 @@ export class ListingsService {
       include: {
         images: true,
         user: { select: { id: true, name: true, avatarUrl: true } },
+        category: true,
+        subcategory: true,
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -269,5 +372,45 @@ export class ListingsService {
       listings: shuffled,
       hasMore: skip + listings.length < total,
     };
+  }
+
+  // === 🌳 Дерево категорий ===
+  async getCategoryTree() {
+    return this.prisma.category.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        subcategories: {
+          orderBy: { name: 'asc' },
+        },
+      },
+    });
+  }
+
+  // === 📋 Атрибуты подкатегории ===
+  async getAttributesBySubcategory(subcategoryId: string) {
+    const subcategory = await this.prisma.subcategory.findUnique({
+      where: { id: subcategoryId },
+      include: {
+        attributes: {
+          orderBy: { order: 'asc' },
+          include: {
+            attribute: true,
+          },
+        },
+      },
+    });
+
+    if (!subcategory) {
+      throw new NotFoundException('Subcategory not found');
+    }
+
+    return subcategory.attributes.map(({ attribute, order }) => ({
+      id: attribute.id,
+      name: attribute.name,
+      key: attribute.key,
+      type: attribute.type,
+      metadata: attribute.metadata,
+      order,
+    }));
   }
 }

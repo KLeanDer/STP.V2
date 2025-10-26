@@ -1,4 +1,13 @@
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsUUID,
+  ValidateNested,
+  IsArray,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ListingAttributeValueDto } from './create-listing.dto';
 
 export class UpdateListingDto {
   @IsOptional()
@@ -14,11 +23,23 @@ export class UpdateListingDto {
   price?: number;
 
   @IsOptional()
-  @IsString()
-  category?: string;
+  @IsUUID()
+  categoryId?: string;
 
   @IsOptional()
+  @IsUUID()
+  subcategoryId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   images?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ListingAttributeValueDto)
+  attributes?: ListingAttributeValueDto[];
 
   @IsOptional()
   @IsString()
