@@ -5,12 +5,13 @@ import Navbar from "./components/layout/Navbar";
 // страницы
 import Home from "./pages/Home/Home";
 import Recommendations from "./pages/Recommendations"; // ✅ новый путь
+import SearchPage from "./pages/Search";
 
 // объявления
 import CreateListing from "./pages/Listings/CreateListing/CreateListing";
 import ListingDetail from "./pages/Listings/ListingDetail";
 import EditListing from "./pages/Listings/EditListing";
-import ListingOrder from "./pages/Listings/ListingOrder/ListingOrder";
+import ListingOrder from "./pages/Listings/listingOrder/ListingOrder";
 
 // авторизация
 import Register from "./pages/Auth/Register";
@@ -57,6 +58,7 @@ export default function App() {
 
         {/* 🧠 Рекомендации */}
         <Route path="/recommendations" element={<Recommendations />} /> {/* ✅ добавлено */}
+        <Route path="/search" element={<SearchPage />} />
 
         {/* Объявления */}
         <Route path="/listings/create" element={<CreateListing />} />
