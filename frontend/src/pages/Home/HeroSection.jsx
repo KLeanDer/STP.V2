@@ -2,8 +2,9 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SearchBarMain from "../../components/common/SearchBarMain";
+import { Filter } from "lucide-react";
 
-export default function HeroSection() {
+export default function HeroSection({ onOpenFilters }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -39,14 +40,25 @@ export default function HeroSection() {
         className="h-[1.5px] bg-gradient-to-r from-transparent via-[#0056b3]/50 to-transparent mb-10 transition-all duration-300"
       />
 
-      {/* Поиск */}
+      {/* Поиск + кнопка фільтрів */}
       <motion.div
         initial={mounted ? { opacity: 0, y: 15 } : false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, delay: 0.5 }}
-        className="mb-10"
+        className="mb-10 flex items-center justify-center gap-3 w-full max-w-[800px]"
       >
-        <SearchBarMain />
+        <div className="flex-grow">
+          <SearchBarMain />
+        </div>
+
+        {/* Кнопка фильтров */}
+        <button
+          onClick={onOpenFilters}
+          className="flex items-center gap-2 px-4 py-3 bg-white border border-neutral-300 rounded-full shadow-sm hover:bg-neutral-100 transition"
+        >
+          <Filter size={18} />
+          <span className="text-sm font-medium">Фільтри</span>
+        </button>
       </motion.div>
 
       {/* Кнопки */}

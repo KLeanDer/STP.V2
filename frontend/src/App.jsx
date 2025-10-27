@@ -2,76 +2,83 @@
 import { useState } from "react";
 import Navbar from "./components/layout/Navbar";
 
-// страницы
+// === Страницы ===
 import Home from "./pages/Home/Home";
-import Recommendations from "./pages/Recommendations"; // ✅ новый путь
+import Recommendations from "./pages/Recommendations";
 
-// объявления
+// === Объявления ===
 import CreateListing from "./pages/Listings/CreateListing/CreateListing";
 import ListingDetail from "./pages/Listings/ListingDetail";
 import EditListing from "./pages/Listings/EditListing";
 import ListingOrder from "./pages/Listings/ListingOrder/ListingOrder";
 
-// авторизация
+// === Категории (данные) ===
+import { categories } from "./data/categories/categories.js"; // ✅ точный путь
+
+// === Авторизация ===
 import Register from "./pages/Auth/Register";
 import Login from "./pages/Auth/Login";
 
-// профиль
+// === Профиль ===
 import AccountLayout from "./pages/Profile/AccountLayout";
 import AccountBuyer from "./pages/Profile/AccountBuyer";
 import AccountSeller from "./pages/Profile/AccountSeller";
 import ProfilePublic from "./pages/Profile/ProfilePublic";
 
-// профиль → подстраницы
+// === Подстраницы профиля ===
 import RedactProfile from "./pages/Profile/RedactProf/RedactProfile";
 import Rating from "./pages/Profile/Rating/Rating";
 import Money from "./pages/Profile/Money/Money";
 import AccountOrderBy from "./pages/Profile/AccountOrder/AccountOrderBy";
 import AccountOrderSel from "./pages/Profile/AccountOrder/AccountOrderSel";
 
-// чат
+// === Чат ===
 import ChatLayout from "./pages/Chat/ChatLayout";
 import ChatsPlaceholder from "./pages/Chat/ChatsPlaceholder";
 import Chat from "./pages/Chat/Chat";
 import ChatStart from "./pages/Chat/ChatStart";
 
-// сокеты
+// === Сокеты ===
 import { useNotificationsSocket } from "./sockets/notifications.hook";
+
+// === Контекст фильтров (если подключён) ===
+// import { FiltersProvider } from "./context/FiltersContext";
 
 export default function App() {
   const [notifications, setNotifications] = useState([]);
   const user = JSON.parse(localStorage.getItem("user"));
 
-  // слушаем уведомления
+  // === Слушаем уведомления ===
   useNotificationsSocket(user?.id, (notif) => {
     setNotifications((prev) => [notif, ...prev]);
   });
 
   return (
+    // <FiltersProvider> // если используешь контекст фильтров — раскомментируй
     <div className="min-h-screen bg-neutral-50">
       <Navbar notifications={notifications} />
 
       <Routes>
-        {/* Главная */}
+        {/* === Главная === */}
         <Route path="/" element={<Home />} />
 
-        {/* 🧠 Рекомендации */}
-        <Route path="/recommendations" element={<Recommendations />} /> {/* ✅ добавлено */}
+        {/* === Рекомендации === */}
+        <Route path="/recommendations" element={<Recommendations />} />
 
-        {/* Объявления */}
+        {/* === Объявления === */}
         <Route path="/listings/create" element={<CreateListing />} />
         <Route path="/listings/:id" element={<ListingDetail />} />
         <Route path="/listings/:id/edit" element={<EditListing />} />
         <Route path="/listings/:id/order" element={<ListingOrder />} />
 
-        {/* Авторизация */}
+        {/* === Авторизация === */}
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
 
-        {/* Публичный профиль */}
+        {/* === Публичный профиль === */}
         <Route path="/profile/:id" element={<ProfilePublic />} />
 
-        {/* Личный кабинет */}
+        {/* === Личный кабинет === */}
         <Route path="/profile" element={<AccountLayout />}>
           <Route index element={<AccountBuyer />} />
           <Route path="buyer" element={<AccountBuyer />} />
@@ -83,7 +90,7 @@ export default function App() {
           <Route path="edit" element={<RedactProfile />} />
         </Route>
 
-        {/* Чат */}
+        {/* === Чат === */}
         <Route path="/chat" element={<ChatLayout />}>
           <Route index element={<ChatsPlaceholder />} />
           <Route path=":chatId" element={<Chat />} />
@@ -91,9 +98,9 @@ export default function App() {
         </Route>
       </Routes>
 
-      {/* 🔔 Простейший вывод уведомлений */}
+      {/* === Простейший вывод уведомлений === */}
       {user && notifications.length > 0 && (
-        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded p-3 w-64">
+        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded p-3 w-64 z-50">
           <h3 className="font-semibold text-sm mb-2">Новые уведомления</h3>
           <ul className="space-y-1 text-sm max-h-40 overflow-y-auto">
             {notifications.slice(0, 5).map((n, i) => (
@@ -105,5 +112,6 @@ export default function App() {
         </div>
       )}
     </div>
+    // </FiltersProvider>
   );
 }
