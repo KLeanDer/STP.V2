@@ -4,6 +4,7 @@ import FormSection from "./FormSection";
 import { validateForm } from "./utils";
 import BackgroundWrapper from "../../../components/layout/BackgroundWrapper";
 import SocialLine from "../../../components/common/SocialLine";
+import { useCategoryTree } from "@/hooks/useCategoryTree";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
@@ -12,7 +13,8 @@ export default function CreateListing() {
     title: "",
     description: "",
     price: "",
-    category: "",
+    categoryId: "",
+    subcategoryId: "",
     images: [], // теперь [{ file, preview }]
     contactName: "",
     contactPhone: "",
@@ -24,6 +26,11 @@ export default function CreateListing() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null);
   const [errors, setErrors] = useState({});
+  const {
+    categories: categoryTree,
+    loading: categoriesLoading,
+    error: categoriesError,
+  } = useCategoryTree();
 
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -74,7 +81,8 @@ export default function CreateListing() {
         title: form.title.trim(),
         description: form.description.trim(),
         price: Number(form.price),
-        category: form.category,
+        categoryId: form.categoryId,
+        subcategoryId: form.subcategoryId || undefined,
         images: uploadedUrls, // уже ссылки
         contactName: form.contactName.trim() || null,
         contactPhone: form.contactPhone.trim() || null,
@@ -102,7 +110,8 @@ export default function CreateListing() {
         title: "",
         description: "",
         price: "",
-        category: "",
+        categoryId: "",
+        subcategoryId: "",
         images: [],
         contactName: "",
         contactPhone: "",
@@ -170,6 +179,9 @@ export default function CreateListing() {
                 setForm={setForm}
                 handleChange={handleChange}
                 errors={errors}
+                categories={categoryTree}
+                categoriesLoading={categoriesLoading}
+                categoriesError={categoriesError}
               />
 
               <button

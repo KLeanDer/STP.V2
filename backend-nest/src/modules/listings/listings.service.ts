@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateListingDto, ListingAttributeValueDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
@@ -80,20 +81,91 @@ export class ListingsService {
   }
 
   // === Все объявления ===
-  async getAllListings(filters?: { userId?: string; status?: string }) {
-    const where: any = {};
+  async getAllListings(
+    filters: {
+      userId?: string;
+      status?: string;
+      categoryId?: string;
+      subcategoryId?: string;
+      priceMin?: number;
+      priceMax?: number;
+      city?: string;
+      deliveryAvailable?: boolean;
+      search?: string;
+      ids?: string[];
+    } = {},
+    options: { limit?: number; skip?: number } = {},
+  ) {
+    const where: Prisma.ListingWhereInput = {};
 
-    if (filters?.userId) where.userId = filters.userId;
-    if (filters?.status && ['active', 'inactive'].includes(filters.status)) {
+    if (filters.ids?.length) {
+      where.id = { in: filters.ids };
+    }
+
+    if (filters.userId) {
+      where.userId = filters.userId;
+    }
+
+    if (filters.status && ['active', 'inactive'].includes(filters.status)) {
       where.status = filters.status;
-    } else if (!filters?.userId) {
+    } else if (!filters.userId) {
       where.status = 'active';
+    }
+
+    if (filters.categoryId) {
+      where.categoryId = filters.categoryId;
+    }
+
+    if (filters.subcategoryId) {
+      where.subcategoryId = filters.subcategoryId;
+    }
+
+    if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
+      const priceFilter: Prisma.FloatFilter = {};
+      if (filters.priceMin !== undefined) priceFilter.gte = filters.priceMin;
+      if (filters.priceMax !== undefined) priceFilter.lte = filters.priceMax;
+      if (Object.keys(priceFilter).length > 0) {
+        where.price = priceFilter;
+      }
+    }
+
+    if (filters.city) {
+      where.city = { contains: filters.city };
+    }
+
+    if (typeof filters.deliveryAvailable === 'boolean') {
+      where.deliveryAvailable = filters.deliveryAvailable;
+    }
+
+    const andConditions: Prisma.ListingWhereInput[] = [];
+
+    if (filters.search) {
+      const query = filters.search.trim();
+      if (query.length > 0) {
+        andConditions.push({
+          OR: [
+            { title: { contains: query } },
+            { description: { contains: query } },
+          ],
+        });
+      }
+    }
+
+    if (andConditions.length > 0) {
+      const existing = Array.isArray(where.AND)
+        ? where.AND
+        : where.AND
+        ? [where.AND]
+        : [];
+      where.AND = [...existing, ...andConditions];
     }
 
     return this.prisma.listing.findMany({
       where,
       include: this.listingInclude,
       orderBy: { createdAt: 'desc' },
+      take: options.limit,
+      skip: options.skip,
     });
   }
 

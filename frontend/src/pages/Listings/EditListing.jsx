@@ -1,17 +1,24 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useCategoryTree } from "@/hooks/useCategoryTree";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
 export default function EditListing() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const {
+    categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+  } = useCategoryTree();
 
   const [form, setForm] = useState({
     title: "",
     description: "",
     price: "",
-    category: "OTHER",
+    categoryId: "",
+    subcategoryId: "",
   });
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
@@ -26,8 +33,12 @@ export default function EditListing() {
           setForm({
             title: data.title || "",
             description: data.description || "",
-            price: data.price || "",
-            category: data.category || "OTHER",
+            price:
+              typeof data.price === "number" && Number.isFinite(data.price)
+                ? String(data.price)
+                : "",
+            categoryId: data.category?.id || "",
+            subcategoryId: data.subcategory?.id || "",
           });
         } else {
           setMsg("❌ " + (data.error || "Не вдалося завантажити оголошення"));
@@ -49,13 +60,31 @@ export default function EditListing() {
     setMsg(null);
 
     try {
+      const priceNumber = Number(form.price);
+      if (!Number.isFinite(priceNumber) || priceNumber <= 0) {
+        setMsg("❌ Вкажіть коректну ціну");
+        return;
+      }
+      if (!form.categoryId) {
+        setMsg("❌ Оберіть категорію");
+        return;
+      }
+
+      const payload = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        price: priceNumber,
+        categoryId: form.categoryId,
+        subcategoryId: form.subcategoryId || undefined,
+      };
+
       const res = await fetch(`${API_BASE}/api/listings/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -109,17 +138,67 @@ export default function EditListing() {
           required
         />
 
-        <select
-          name="category"
-          value={form.category}
-          onChange={handleChange}
-          className="w-full border rounded-lg px-4 py-2"
-        >
-          <option value="OTHER">Інше</option>
-          <option value="ELECTRONICS">Електроніка</option>
-          <option value="CLOTHES">Одяг</option>
-          <option value="CARS">Авто</option>
-        </select>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Категорія
+            </label>
+            <select
+              name="categoryId"
+              value={form.categoryId}
+              onChange={(e) =>
+                setForm((prev) => ({
+                  ...prev,
+                  categoryId: e.target.value,
+                  subcategoryId: "",
+                }))
+              }
+              className="w-full border rounded-lg px-4 py-2"
+              disabled={categoriesLoading}
+            >
+              <option value="">Оберіть категорію</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            {categoriesError && !categoriesLoading && (
+              <p className="text-sm text-rose-500 mt-1">
+                Не вдалося завантажити категорії. Спробуйте пізніше.
+              </p>
+            )}
+          </div>
+
+          {form.categoryId && (
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Підкатегорія
+              </label>
+              <select
+                name="subcategoryId"
+                value={form.subcategoryId}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    subcategoryId: e.target.value,
+                  }))
+                }
+                className="w-full border rounded-lg px-4 py-2"
+                disabled={categoriesLoading}
+              >
+                <option value="">Усі підкатегорії</option>
+                {categories
+                  .find((category) => category.id === form.categoryId)
+                  ?.subcategories?.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+        </div>
 
         <button
           type="submit"

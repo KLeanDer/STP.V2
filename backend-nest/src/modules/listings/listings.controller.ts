@@ -20,11 +20,69 @@ export class ListingsController {
 
   // === 🗂 Все объявления ===
   @Get()
-  async getAll(
-    @Query('userId') userId?: string,
-    @Query('status') status?: string,
-  ) {
-    return this.listingsService.getAllListings({ userId, status });
+  async getAll(@Query() query: Record<string, string | string[] | undefined>) {
+    const {
+      userId,
+      status,
+      categoryId,
+      subcategoryId,
+      priceMin,
+      priceMax,
+      city,
+      deliveryAvailable,
+      search,
+      ids,
+      limit,
+      page,
+    } = query;
+
+    const parseNumber = (value?: string | string[]) => {
+      if (Array.isArray(value)) return undefined;
+      if (value === undefined || value === null || value.trim() === '') return undefined;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+
+    const parseBoolean = (value?: string | string[]) => {
+      if (Array.isArray(value)) return undefined;
+      if (value === undefined) return undefined;
+      const normalized = value.trim().toLowerCase();
+      if (['true', '1', 'yes'].includes(normalized)) return true;
+      if (['false', '0', 'no'].includes(normalized)) return false;
+      return undefined;
+    };
+
+    const parseIds = (value?: string | string[]) => {
+      if (!value) return undefined;
+      const raw = Array.isArray(value) ? value : value.split(',');
+      const cleaned = raw.map((id) => id.trim()).filter((id) => id.length > 0);
+      return cleaned.length ? cleaned : undefined;
+    };
+
+    const limitNum = parseNumber(limit);
+    const pageNum = parseNumber(page);
+
+    return this.listingsService.getAllListings(
+      {
+        userId: typeof userId === 'string' ? userId : undefined,
+        status: typeof status === 'string' ? status : undefined,
+        categoryId: typeof categoryId === 'string' ? categoryId : undefined,
+        subcategoryId: typeof subcategoryId === 'string' ? subcategoryId : undefined,
+        priceMin: parseNumber(priceMin),
+        priceMax: parseNumber(priceMax),
+        city: typeof city === 'string' ? city.trim() : undefined,
+        deliveryAvailable: parseBoolean(deliveryAvailable),
+        search: typeof search === 'string' ? search.trim() : undefined,
+        ids: parseIds(ids),
+      },
+      {
+        limit: limitNum && limitNum > 0 ? Math.min(limitNum, 100) : undefined,
+        skip:
+          limitNum && limitNum > 0
+            ? Math.max((pageNum && pageNum > 0 ? pageNum : 1) - 1, 0) * limitNum
+            : undefined,
+      },
+    );
   }
 
   // === 🌍 Explore — умная лента с пагинацией (ДОЛЖНА быть выше :id!) ===
