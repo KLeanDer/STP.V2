@@ -10,10 +10,7 @@ import Recommendations from "./pages/Recommendations";
 import CreateListing from "./pages/Listings/CreateListing/CreateListing";
 import ListingDetail from "./pages/Listings/ListingDetail";
 import EditListing from "./pages/Listings/EditListing";
-import ListingOrder from "./pages/Listings/ListingOrder/ListingOrder";
-
-// === Категории (данные) ===
-import { categories } from "./data/categories/categories.js"; // ✅ точный путь
+import ListingOrder from "./pages/Listings/listingOrder/ListingOrder";
 
 // === Авторизация ===
 import Register from "./pages/Auth/Register";
@@ -41,8 +38,8 @@ import ChatStart from "./pages/Chat/ChatStart";
 // === Сокеты ===
 import { useNotificationsSocket } from "./sockets/notifications.hook";
 
-// === Контекст фильтров (если подключён) ===
-// import { FiltersProvider } from "./context/FiltersContext";
+// === Контекст фильтрів ===
+import { FiltersProvider } from "./context/FiltersContext";
 
 export default function App() {
   const [notifications, setNotifications] = useState([]);
@@ -54,54 +51,54 @@ export default function App() {
   });
 
   return (
-    // <FiltersProvider> // если используешь контекст фильтров — раскомментируй
-    <div className="min-h-screen bg-neutral-50">
-      <Navbar notifications={notifications} />
+    <FiltersProvider>
+      <div className="min-h-screen bg-neutral-50">
+        <Navbar notifications={notifications} />
 
-      <Routes>
-        {/* === Главная === */}
-        <Route path="/" element={<Home />} />
+        <Routes>
+          {/* === Главная === */}
+          <Route path="/" element={<Home />} />
 
-        {/* === Рекомендации === */}
-        <Route path="/recommendations" element={<Recommendations />} />
+          {/* === Рекомендации === */}
+          <Route path="/recommendations" element={<Recommendations />} />
 
-        {/* === Объявления === */}
-        <Route path="/listings/create" element={<CreateListing />} />
-        <Route path="/listings/:id" element={<ListingDetail />} />
-        <Route path="/listings/:id/edit" element={<EditListing />} />
-        <Route path="/listings/:id/order" element={<ListingOrder />} />
+          {/* === Объявления === */}
+          <Route path="/listings/create" element={<CreateListing />} />
+          <Route path="/listings/:id" element={<ListingDetail />} />
+          <Route path="/listings/:id/edit" element={<EditListing />} />
+          <Route path="/listings/:id/order" element={<ListingOrder />} />
 
-        {/* === Авторизация === */}
-        <Route path="/register" element={<Register />} />
-        <Route path="/login" element={<Login />} />
+          {/* === Авторизация === */}
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
 
-        {/* === Публичный профиль === */}
-        <Route path="/profile/:id" element={<ProfilePublic />} />
+          {/* === Публичный профиль === */}
+          <Route path="/profile/:id" element={<ProfilePublic />} />
 
-        {/* === Личный кабинет === */}
-        <Route path="/profile" element={<AccountLayout />}>
-          <Route index element={<AccountBuyer />} />
-          <Route path="buyer" element={<AccountBuyer />} />
-          <Route path="seller" element={<AccountSeller />} />
-          <Route path="orders/buyer" element={<AccountOrderBy />} />
-          <Route path="orders/seller" element={<AccountOrderSel />} />
-          <Route path="money" element={<Money />} />
-          <Route path="rating" element={<Rating />} />
-          <Route path="edit" element={<RedactProfile />} />
-        </Route>
+          {/* === Личный кабинет === */}
+          <Route path="/profile" element={<AccountLayout />}>
+            <Route index element={<AccountBuyer />} />
+            <Route path="buyer" element={<AccountBuyer />} />
+            <Route path="seller" element={<AccountSeller />} />
+            <Route path="orders/buyer" element={<AccountOrderBy />} />
+            <Route path="orders/seller" element={<AccountOrderSel />} />
+            <Route path="money" element={<Money />} />
+            <Route path="rating" element={<Rating />} />
+            <Route path="edit" element={<RedactProfile />} />
+          </Route>
 
-        {/* === Чат === */}
-        <Route path="/chat" element={<ChatLayout />}>
-          <Route index element={<ChatsPlaceholder />} />
-          <Route path=":chatId" element={<Chat />} />
-          <Route path="start" element={<ChatStart />} />
-        </Route>
-      </Routes>
+          {/* === Чат === */}
+          <Route path="/chat" element={<ChatLayout />}>
+            <Route index element={<ChatsPlaceholder />} />
+            <Route path=":chatId" element={<Chat />} />
+            <Route path="start" element={<ChatStart />} />
+          </Route>
+        </Routes>
 
-      {/* === Простейший вывод уведомлений === */}
-      {user && notifications.length > 0 && (
-        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded p-3 w-64 z-50">
-          <h3 className="font-semibold text-sm mb-2">Новые уведомления</h3>
+        {/* === Простейший вывод уведомлений === */}
+        {user && notifications.length > 0 && (
+          <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded p-3 w-64 z-50">
+            <h3 className="font-semibold text-sm mb-2">Новые уведомления</h3>
           <ul className="space-y-1 text-sm max-h-40 overflow-y-auto">
             {notifications.slice(0, 5).map((n, i) => (
               <li key={i} className="border-b pb-1">
@@ -110,8 +107,8 @@ export default function App() {
             ))}
           </ul>
         </div>
-      )}
-    </div>
-    // </FiltersProvider>
+        )}
+      </div>
+    </FiltersProvider>
   );
 }

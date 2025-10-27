@@ -1,7 +1,8 @@
-﻿import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import HeroSection from "./HeroSection";
 import CategoriesSection from "./CategoriesSection";
 import FooterSection from "./FooterSection";
+import FilteredListingsFeed from "./FilteredListingsFeed";
 import SocialLine from "@components/common/SocialLine";
 import SearchBarGlobal from "@components/layout/SearchBarGlobal";
 import BackgroundWrapper from "@components/layout/BackgroundWrapper";
@@ -9,12 +10,26 @@ import RecommendationsCompact from "@components/recommendations/RecommendationsC
 import FiltersPanel from "@components/common/Filters/FiltersPanel.jsx";
 import { Filter } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useFilters } from "@context/FiltersContext";
 
 export default function Home() {
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [filtersHover, setFiltersHover] = useState(false);
   const [filtersPinned, setFiltersPinned] = useState(false);
   const heroRef = useRef(null);
+  const { filters } = useFilters();
+
+  const activeFiltersCount = useMemo(() => {
+    if (!filters || typeof filters !== "object") return 0;
+    return Object.values(filters).reduce((acc, value) => {
+      if (value === undefined || value === null) return acc;
+      if (typeof value === "string") return value.trim() !== "" ? acc + 1 : acc;
+      if (typeof value === "number") return Number.isFinite(value) ? acc + 1 : acc;
+      if (typeof value === "boolean") return value ? acc + 1 : acc;
+      if (Array.isArray(value)) return value.length > 0 ? acc + 1 : acc;
+      return acc + 1;
+    }, 0);
+  }, [filters]);
 
   // === Контроль прокрутки ===
   useEffect(() => {
@@ -77,6 +92,11 @@ export default function Home() {
               >
                 <Filter size={18} />
                 <span className="text-sm font-medium">Фільтри</span>
+                {activeFiltersCount > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-600 px-2 text-xs font-semibold text-white">
+                    {activeFiltersCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -110,6 +130,8 @@ export default function Home() {
           <div className="mt-[clamp(32px,5vw,80px)] px-[clamp(12px,3vw,64px)]">
             <CategoriesSection />
           </div>
+
+          <FilteredListingsFeed />
         </main>
 
         {/* === Футер === */}

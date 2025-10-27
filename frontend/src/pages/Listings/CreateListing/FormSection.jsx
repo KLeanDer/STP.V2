@@ -13,7 +13,15 @@ import { useEffect } from "react";
 import ImageUploader from "./ImageUploader";
 import ContactFields from "./ContactFields";
 
-export default function FormSection({ form, setForm, handleChange, errors }) {
+export default function FormSection({
+  form,
+  setForm,
+  handleChange,
+  errors,
+  categories = [],
+  categoriesLoading = false,
+  categoriesError = null,
+}) {
   // 🌍 Автоматичне визначення міста по IP
   useEffect(() => {
     if (form.city) return;
@@ -23,7 +31,7 @@ export default function FormSection({ form, setForm, handleChange, errors }) {
         if (data?.city) setForm((prev) => ({ ...prev, city: data.city }));
       })
       .catch(() => {});
-  }, []);
+  }, [form.city, setForm]);
 
   const baseInput =
     "w-full border border-neutral-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-[var(--stp-ring)] focus:border-transparent outline-none transition-all";
@@ -38,7 +46,7 @@ export default function FormSection({ form, setForm, handleChange, errors }) {
     if (form.deliveryAvailable === undefined) {
       setForm((prev) => ({ ...prev, deliveryAvailable: true }));
     }
-  }, []);
+  }, [form.deliveryAvailable, setForm]);
 
   return (
     <div
@@ -101,24 +109,68 @@ export default function FormSection({ form, setForm, handleChange, errors }) {
           </div>
 
           {/* Категорія */}
-          <div>
-            <label className="flex items-center gap-2 font-medium text-neutral-800 mb-2">
-              <List size={18} /> Категорія
-            </label>
-            <select
-              name="category"
-              value={form.category}
-              onChange={handleChange}
-              className={errors.category ? errorInput : baseInput}
-            >
-              <option value="">Оберіть категорію</option>
-              <option value="ELECTRONICS">Електроніка</option>
-              <option value="CLOTHES">Одяг</option>
-              <option value="AUTO">Авто</option>
-              <option value="OTHER">Інше</option>
-            </select>
-            {errors.category && (
-              <p className="text-rose-500 text-sm mt-1">{errors.category}</p>
+          <div className="space-y-2">
+            <div>
+              <label className="flex items-center gap-2 font-medium text-neutral-800 mb-2">
+                <List size={18} /> Категорія
+              </label>
+              <select
+                name="categoryId"
+                value={form.categoryId}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    categoryId: e.target.value,
+                    subcategoryId: "",
+                  }))
+                }
+                className={errors.categoryId ? errorInput : baseInput}
+                disabled={categoriesLoading}
+              >
+                <option value="">Оберіть категорію</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              {errors.categoryId && (
+                <p className="text-rose-500 text-sm mt-1">{errors.categoryId}</p>
+              )}
+              {categoriesError && !categoriesLoading && (
+                <p className="text-rose-500 text-sm mt-1">
+                  Не вдалося завантажити категорії. Спробуйте пізніше.
+                </p>
+              )}
+            </div>
+
+            {form.categoryId && (
+              <div>
+                <label className="flex items-center gap-2 font-medium text-neutral-800 mb-2">
+                  <List size={18} /> Підкатегорія
+                </label>
+                <select
+                  name="subcategoryId"
+                  value={form.subcategoryId}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      subcategoryId: e.target.value,
+                    }))
+                  }
+                  className={baseInput}
+                  disabled={categoriesLoading}
+                >
+                  <option value="">Усі підкатегорії</option>
+                  {categories
+                    .find((category) => category.id === form.categoryId)
+                    ?.subcategories?.map((sub) => (
+                      <option key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
             )}
           </div>
 
