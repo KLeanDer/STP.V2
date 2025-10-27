@@ -4,12 +4,13 @@ import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { getRequiredEnv } from '../../core/config/env.util';
 
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService) {}
 
-  private JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
+  private readonly JWT_SECRET = getRequiredEnv('JWT_SECRET');
 
   async register(data: RegisterDto) {
     const existing = await this.prisma.user.findUnique({ where: { email: data.email } });

@@ -37,8 +37,8 @@ export class ChatController {
    * GET /api/chat/:chatId/messages
    */
   @Get(':chatId/messages')
-  getMessages(@Param('chatId') chatId: string) {
-    return this.chatService.getMessages(chatId);
+  getMessages(@Param('chatId') chatId: string, @Req() req: any) {
+    return this.chatService.getMessages(chatId, req.user.userId);
   }
 
   /**
@@ -46,7 +46,7 @@ export class ChatController {
    * GET /api/chat/:chatId
    */
   @Get(':chatId')
-  getChat(@Param('chatId') chatId: string) {
-    return this.chatService.getChatWithMessages(chatId);
+  getChat(@Param('chatId') chatId: string, @Req() req: any) {
+    return this.chatService.getChatWithMessages(chatId, req.user.userId);
   }
 }
