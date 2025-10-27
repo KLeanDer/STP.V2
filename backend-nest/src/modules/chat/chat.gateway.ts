@@ -1,4 +1,5 @@
 // src/modules/chat/chat.gateway.ts
+import { UseGuards } from '@nestjs/common';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -6,10 +7,12 @@ import {
   MessageBody,
   ConnectedSocket,
   OnGatewayDisconnect,
+  WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { JwtWsGuard } from '../auth/jwt-ws.guard';
 
 export enum MessageStatus {
   SENT = 'SENT',
@@ -18,6 +21,7 @@ export enum MessageStatus {
 }
 
 @WebSocketGateway({ cors: { origin: '*' } })
+@UseGuards(JwtWsGuard)
 export class ChatGateway implements OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
@@ -31,17 +35,22 @@ export class ChatGateway implements OnGatewayDisconnect {
   /** Личная комната пользователя */
   @SubscribeMessage('joinUser')
   async joinUser(
-    @MessageBody() data: { userId: string },
+    @MessageBody() data: { userId?: string },
     @ConnectedSocket() client: Socket,
   ) {
-    const userId = data?.userId;
+    const userId = client.data?.userId as string | undefined;
+
     if (!userId) {
-      client.emit('error', { message: 'userId обязателен для joinUser' });
+      throw new WsException('Пользователь не аутентифицирован');
+    }
+
+    if (data?.userId && data.userId !== userId) {
+      client.emit('error', {
+        message: 'Нельзя подключиться от имени другого пользователя',
+      });
       return;
     }
 
-    // привязываем userId к сокету (удобно для disconnect)
-    client.data.userId = userId;
     client.join(userId);
 
     // если был таймер оффлайна → отменяем (юзер вернулся)
@@ -85,9 +94,11 @@ export class ChatGateway implements OnGatewayDisconnect {
 
   /** Запросить актуальный счётчик непрочитанных */
   @SubscribeMessage('requestUnreadCount')
-  async requestUnreadCount(@MessageBody() data: { userId: string }) {
-    const userId = data?.userId;
-    if (!userId) return;
+  async requestUnreadCount(@ConnectedSocket() client: Socket) {
+    const userId = client.data?.userId as string | undefined;
+    if (!userId) {
+      throw new WsException('Пользователь не аутентифицирован');
+    }
 
     const total = await this.chatService.getUnreadCount(userId);
     this.server.to(userId).emit('unreadCountUpdated', total);
@@ -111,6 +122,14 @@ export class ChatGateway implements OnGatewayDisconnect {
       client.emit('error', { message: 'chatId обязателен для joinChat' });
       return;
     }
+
+    const userId = client.data?.userId as string | undefined;
+    if (!userId) {
+      throw new WsException('Пользователь не аутентифицирован');
+    }
+
+    await this.chatService.assertParticipant(data.chatId, userId);
+
     client.join(data.chatId);
     console.log(`✅ ${client.id} joinChat ${data.chatId}`);
   }
@@ -129,31 +148,36 @@ export class ChatGateway implements OnGatewayDisconnect {
   /** Отправка сообщения */
   @SubscribeMessage('sendMessage')
   async handleMessage(
-    @MessageBody() data: SendMessageDto & { senderId: string },
+    @MessageBody() data: SendMessageDto,
     @ConnectedSocket() client: Socket,
   ) {
     try {
-      if (!data.chatId || !data.senderId || !data.receiverId || !data.text) {
+      if (!data.chatId || !data.receiverId || !data.text) {
         client.emit('error', {
-          message: 'chatId, senderId, receiverId и text обязательны',
+          message: 'chatId, receiverId и text обязательны',
         });
         return;
       }
 
-      const message = await this.chatService.saveMessage(data.senderId, data);
+      const senderId = client.data?.userId as string | undefined;
+      if (!senderId) {
+        throw new WsException('Пользователь не аутентифицирован');
+      }
+
+      const message = await this.chatService.saveMessage(senderId, data);
 
       // всем в чате
       this.server.to(data.chatId).emit('newMessage', message);
 
       // обновим общий + чатовый счётчик для получателя
-      const total = await this.chatService.getUnreadCount(data.receiverId);
+      const total = await this.chatService.getUnreadCount(message.receiverId);
       const perChat = await this.chatService.getChatUnreadCount(
         data.chatId,
-        data.receiverId,
+        message.receiverId,
       );
 
-      this.server.to(data.receiverId).emit('unreadCountUpdated', total);
-      this.server.to(data.receiverId).emit('chatUnreadUpdated', {
+      this.server.to(message.receiverId).emit('unreadCountUpdated', total);
+      this.server.to(message.receiverId).emit('chatUnreadUpdated', {
         chatId: data.chatId,
         unreadCount: perChat,
       });
@@ -164,7 +188,7 @@ export class ChatGateway implements OnGatewayDisconnect {
       // как только сообщение отправлено → гасим индикатор typing
       this.server.to(data.chatId).emit('typing', {
         chatId: data.chatId,
-        userId: data.senderId,
+        userId: senderId,
         isTyping: false,
       });
     } catch (error) {
@@ -177,12 +201,20 @@ export class ChatGateway implements OnGatewayDisconnect {
   @SubscribeMessage('updateStatus')
   async handleStatusUpdate(
     @MessageBody() data: { messageId: string; status: MessageStatus },
+    @ConnectedSocket() client: Socket,
   ) {
     if (!data?.messageId || !data?.status) return;
+
+    const userId = client.data?.userId as string | undefined;
+    if (!userId) {
+      throw new WsException('Пользователь не аутентифицирован');
+    }
+
     try {
       const updated = await this.chatService.updateMessageStatus(
         data.messageId,
         data.status,
+        userId,
       );
       this.server.emit('messageStatusUpdated', updated);
     } catch (error) {
@@ -193,21 +225,29 @@ export class ChatGateway implements OnGatewayDisconnect {
   /** Пометить чат прочитанным */
   @SubscribeMessage('markAsRead')
   async handleMarkAsRead(
-    @MessageBody() data: { chatId: string; userId: string },
+    @MessageBody() data: { chatId: string },
+    @ConnectedSocket() client: Socket,
   ) {
+    if (!data?.chatId) return;
+
+    const userId = client.data?.userId as string | undefined;
+    if (!userId) {
+      throw new WsException('Пользователь не аутентифицирован');
+    }
+
     try {
-      await this.chatService.markChatAsRead(data.chatId, data.userId);
+      await this.chatService.markChatAsRead(data.chatId, userId);
 
-      const total = await this.chatService.getUnreadCount(data.userId);
+      const total = await this.chatService.getUnreadCount(userId);
 
-      this.server.to(data.userId).emit('unreadCountUpdated', total);
-      this.server.to(data.userId).emit('chatUnreadUpdated', {
+      this.server.to(userId).emit('unreadCountUpdated', total);
+      this.server.to(userId).emit('chatUnreadUpdated', {
         chatId: data.chatId,
         unreadCount: 0,
       });
 
       console.log(
-        `👁 read chat=${data.chatId} user=${data.userId} → unread=0 (total=${total})`,
+        `👁 read chat=${data.chatId} user=${userId} → unread=0 (total=${total})`,
       );
     } catch (error) {
       console.error('❌ markAsRead error', error);
@@ -217,14 +257,17 @@ export class ChatGateway implements OnGatewayDisconnect {
   /** Индикатор "печатает" */
   @SubscribeMessage('typing')
   async handleTyping(
-    @MessageBody() data: { chatId: string; userId: string; isTyping: boolean },
+    @MessageBody() data: { chatId: string; isTyping: boolean },
     @ConnectedSocket() client: Socket,
   ) {
-    if (!data?.chatId || !data?.userId) return;
+    const userId = client.data?.userId as string | undefined;
+    if (!data?.chatId || !userId) return;
+
+    await this.chatService.assertParticipant(data.chatId, userId);
 
     client.to(data.chatId).emit('typing', {
       chatId: data.chatId,
-      userId: data.userId,
+      userId,
       isTyping: data.isTyping,
     });
   }

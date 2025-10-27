@@ -11,6 +11,23 @@ import { SendMessageDto } from './dto/send-message.dto';
 export class ChatService {
   constructor(private prisma: PrismaService) {}
 
+  async assertParticipant(chatId: string, userId: string) {
+    const chat = await this.prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { id: true, buyerId: true, sellerId: true },
+    });
+
+    if (!chat) {
+      throw new NotFoundException('Чат не найден');
+    }
+
+    if (chat.buyerId !== userId && chat.sellerId !== userId) {
+      throw new ForbiddenException('Нет доступа к чату');
+    }
+
+    return chat;
+  }
+
   /**
    * Создать чат или вернуть существующий.
    * Уникальность: buyerId + sellerId + listingId.
@@ -75,7 +92,9 @@ export class ChatService {
   /**
    * Чат + участники + все сообщения
    */
-  async getChatWithMessages(chatId: string) {
+  async getChatWithMessages(chatId: string, userId: string) {
+    await this.assertParticipant(chatId, userId);
+
     const chat = await this.prisma.chat.findUnique({
       where: { id: chatId },
       include: {
@@ -92,14 +111,19 @@ export class ChatService {
       },
     });
 
-    if (!chat) throw new NotFoundException('Чат не найден');
+    if (!chat) {
+      throw new NotFoundException('Чат не найден');
+    }
+
     return chat;
   }
 
   /**
    * Сообщения чата
    */
-  async getMessages(chatId: string) {
+  async getMessages(chatId: string, userId: string) {
+    await this.assertParticipant(chatId, userId);
+
     return this.prisma.message.findMany({
       where: { chatId },
       orderBy: { createdAt: 'asc' },
@@ -117,11 +141,24 @@ export class ChatService {
     if (!dto.chatId) throw new Error('chatId обязателен');
     if (!dto.receiverId) throw new Error('receiverId обязателен');
 
+    const chat = await this.assertParticipant(dto.chatId, senderId);
+
+    const receiverId =
+      chat.buyerId === senderId ? chat.sellerId : chat.buyerId;
+
+    if (!receiverId) {
+      throw new ForbiddenException('Не удалось определить получателя');
+    }
+
+    if (dto.receiverId !== receiverId) {
+      throw new ForbiddenException('Получатель не соответствует чату');
+    }
+
     return this.prisma.message.create({
       data: {
         chatId: dto.chatId,
         senderId,
-        receiverId: dto.receiverId,
+        receiverId,
         text: dto.text,
         status: 'SENT',
         isRead: false,
@@ -139,7 +176,30 @@ export class ChatService {
   async updateMessageStatus(
     messageId: string,
     status: 'SENT' | 'DELIVERED' | 'READ',
+    userId: string,
   ) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, chatId: true, senderId: true, receiverId: true },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Сообщение не найдено');
+    }
+
+    await this.assertParticipant(message.chatId, userId);
+
+    const isSender = message.senderId === userId;
+    const isReceiver = message.receiverId === userId;
+
+    if (status === 'SENT' && !isSender) {
+      throw new ForbiddenException('Только отправитель может подтвердить отправку');
+    }
+
+    if (status !== 'SENT' && !isReceiver) {
+      throw new ForbiddenException('Только получатель может обновлять статус сообщения');
+    }
+
     return this.prisma.message.update({
       where: { id: messageId },
       data: {
@@ -187,6 +247,8 @@ export class ChatService {
    * Пометить все сообщения в чате как прочитанные
    */
   async markChatAsRead(chatId: string, userId: string) {
+    await this.assertParticipant(chatId, userId);
+
     await this.prisma.message.updateMany({
       where: { chatId, receiverId: userId, isRead: false },
       data: { isRead: true, status: 'READ' },
